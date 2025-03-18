@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Event {
   id: string;
@@ -24,6 +24,13 @@ const StudentCard: React.FC<StudentProps> = ({ initialEvents = [] }) => {
   const [newEventName, setNewEventName] = useState('');
   const [newEventPoints, setNewEventPoints] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Certificate modal state
+  const [isCertModalOpen, setIsCertModalOpen] = useState(false);
+  const [certDate, setCertDate] = useState('');
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [certPreviewUrl, setCertPreviewUrl] = useState<string | null>(null);
+  const [certIsDragging, setCertIsDragging] = useState(false);
 
   // Calculate total points
   const totalPoints = events.reduce((sum, event) => sum + event.points, 0);
@@ -88,6 +95,86 @@ const StudentCard: React.FC<StudentProps> = ({ initialEvents = [] }) => {
         setPreviewUrl(fileReader.result as string);
       };
       fileReader.readAsDataURL(file);
+    }
+  };
+  
+  // Certificate modal functions
+  const openCertModal = () => {
+    setIsCertModalOpen(true);
+  };
+  
+  const closeCertModal = () => {
+    setIsCertModalOpen(false);
+  };
+  
+  const handleCertDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCertDate(e.target.value);
+  };
+  
+  const handleCertFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCertFile(file);
+      if (file.type.startsWith('image/')) {
+        const fileReader = new FileReader();
+        fileReader.onload = () => {
+          setCertPreviewUrl(fileReader.result as string);
+        };
+        fileReader.readAsDataURL(file);
+      } else {
+        // For PDF files, show a placeholder
+        setCertPreviewUrl(null);
+      }
+    }
+  };
+  
+  const handleCertDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    setCertIsDragging(true);
+  };
+
+  const handleCertDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setCertIsDragging(false);
+  };
+
+  const handleCertDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleCertDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setCertIsDragging(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      setCertFile(file);
+      
+      if (file.type.startsWith('image/')) {
+        const fileReader = new FileReader();
+        fileReader.onload = () => {
+          setCertPreviewUrl(fileReader.result as string);
+        };
+        fileReader.readAsDataURL(file);
+      } else {
+        // For PDF files, show a placeholder
+        setCertPreviewUrl(null);
+      }
+    }
+  };
+  
+  const handleCertUpload = () => {
+    if (certFile && certDate) {
+      // Update the main file state after upload is confirmed
+      setSelectedFile(certFile);
+      
+      // Close the modal
+      setIsCertModalOpen(false);
+      
+      // Reset the certificate modal state
+      setCertFile(null);
+      setCertDate('');
+      setCertPreviewUrl(null);
     }
   };
 
@@ -248,7 +335,10 @@ const StudentCard: React.FC<StudentProps> = ({ initialEvents = [] }) => {
                 onChange={handleFileChange}
                 accept="image/*,.pdf"
               />
-              <label htmlFor="certificate" className="upload-label">
+              <label htmlFor="certificate" className="upload-label" onClick={(e) => {
+                e.preventDefault();
+                openCertModal();
+              }}>
                 {selectedFile ? selectedFile.name : 'Choose file or drag & drop'}
               </label>
             </div>
@@ -262,6 +352,92 @@ const StudentCard: React.FC<StudentProps> = ({ initialEvents = [] }) => {
           </div>
         </div>
       </motion.div>
+      
+      {/* Certificate Upload Modal */}
+      <AnimatePresence>
+        {isCertModalOpen && (
+          <motion.div 
+            className="cert-modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div 
+              className="cert-modal"
+              initial={{ scale: 0.8, y: 50, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.8, y: 50, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            >
+              <div className="cert-modal-header">
+                <h2>NAME</h2>
+                <button className="cert-close-button" onClick={closeCertModal}>×</button>
+              </div>
+              
+              <div className="cert-modal-content">
+                <div className="cert-input-groups">
+                  <div className="cert-input-group">
+                    <label>date</label>
+                    <input 
+                      type="date" 
+                      value={certDate}
+                      onChange={handleCertDateChange}
+                    />
+                  </div>
+                  
+                  <div className="cert-input-group">
+                    <label>pdf</label>
+                    <div 
+                      className={`cert-pdf-container ${certFile && !certFile.type.startsWith('image/') ? 'has-pdf' : ''}`}
+                    >
+                      {certFile && !certFile.type.startsWith('image/') ? (
+                        <div className="cert-pdf-filename">{certFile.name}</div>
+                      ) : (
+                        <span>Choose PDF</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                <div 
+                  className={`cert-dropzone ${certIsDragging ? 'cert-dragging' : ''}`}
+                  onDragEnter={handleCertDragEnter}
+                  onDragLeave={handleCertDragLeave}
+                  onDragOver={handleCertDragOver}
+                  onDrop={handleCertDrop}
+                >
+                  {certPreviewUrl ? (
+                    <div className="cert-preview">
+                      <img src={certPreviewUrl} alt="Certificate preview" />
+                    </div>
+                  ) : (
+                    <div className="cert-placeholder">
+                      <div className="cert-placeholder-grid"></div>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    id="cert-upload"
+                    className="cert-file-input"
+                    onChange={handleCertFileChange}
+                    accept="image/*,.pdf"
+                  />
+                </div>
+                
+                <div className="cert-upload-btn-container">
+                  <button 
+                    className="cert-upload-btn"
+                    onClick={handleCertUpload}
+                    disabled={!certFile || !certDate}
+                  >
+                    upload
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
